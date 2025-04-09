@@ -135,6 +135,7 @@ page 82560 "ADLSE Setup"
                     {
                         Lookup = true;
                     }
+                    field("LSC Naming Convention"; Rec."LSC Naming Convention") { }
                 }
             }
             part(Tables; "ADLSE Setup Tables")

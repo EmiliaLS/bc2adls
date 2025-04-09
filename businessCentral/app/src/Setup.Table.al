@@ -207,6 +207,13 @@ table 82560 "ADLSE Setup"
             ToolTip = 'Specifies the delayed export time in seconds (0 = No delay).';
             InitValue = 0;
         }
+        field(50000; "LSC Naming Convention"; Option)
+        {
+            Caption = 'LSC Naming Convention';
+            ToolTip = 'Specifies the naming convention for table and field names.';
+            OptionCaption = 'Original,LSCentral';
+            OptionMembers = Original,LSCentral;
+        }
 
     }
 
