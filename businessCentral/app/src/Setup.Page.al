@@ -135,7 +135,31 @@ page 82560 "ADLSE Setup"
                     {
                         Lookup = true;
                     }
-                    field("LSC Naming Convention"; Rec."LSC Naming Convention") { }
+                }
+                group(LSCentral)
+                {
+                    Caption = 'LSCentral';
+                    field("LSC Naming Convention"; Rec."LSC Naming Convention")
+                    {
+                        trigger OnValidate()
+                        begin
+                            CurrPage.Update();
+                        end;
+                    }
+                    field("LSC Prefix to be removed"; Rec."LSC Prefix to be removed")
+                    {
+                        trigger OnValidate()
+                        begin
+                            CurrPage.Update();
+                        end;
+                    }
+                    field("LSC Special Char to be kept"; Rec."LSC Special Char to be kept")
+                    {
+                        trigger OnValidate()
+                        begin
+                            CurrPage.Update();
+                        end;
+                    }
                 }
             }
             part(Tables; "ADLSE Setup Tables")
@@ -149,6 +173,39 @@ page 82560 "ADLSE Setup"
     {
         area(Processing)
         {
+            action(LSCInitialize)
+            {
+                ApplicationArea = All;
+                Caption = 'LSC Initialize Setup';
+                Image = Insert;
+
+                trigger OnAction()
+                var
+                    Util: Codeunit "ADLSE Util";
+                begin
+                    Util.LSCInitializeSetup(Rec);
+                    CurrPage.Update();
+                end;
+            }
+            action(LSCTEST)
+            {
+                ApplicationArea = All;
+                Caption = 'LSC TEST';
+                Image = TestReport;
+
+                trigger OnAction()
+                var
+                    Util: Codeunit "ADLSE Util";
+                    pretext, pre : text;
+                begin
+                    pretext := Rec."LSC Prefix to be removed";
+                    while (pretext <> '') do begin
+                        pre := Util.LSCReturnNextPrefix(pretext);
+                        Message(pre);
+                    end;
+
+                end;
+            }
             action(ExportNow)
             {
                 ApplicationArea = All;

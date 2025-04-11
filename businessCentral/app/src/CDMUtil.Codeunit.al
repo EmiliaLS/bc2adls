@@ -121,6 +121,8 @@ codeunit 82566 "ADLSE CDM Util" // Refer Common Data Model https://docs.microsof
         FieldLength: Integer;
         DataFormat: Text;
         AppliedTraits: JsonArray;
+        FieldNameList: List of [Text];
+        CompliantFieldName: Text;
     begin
         RecordRef.Open(TableID);
         foreach FieldId in FieldIdList do begin
@@ -131,9 +133,16 @@ codeunit 82566 "ADLSE CDM Util" // Refer Common Data Model https://docs.microsof
                 FieldLength := EnumValueMaxLength();
             if FieldRef.Type = FieldRef.Type::Decimal then
                 FieldLength := 15; // 15 is the default max number of digits. FieldRef.Length is giving the wrong number back for decimal
+
+            CompliantFieldName := ADLSEUtil.GetDataLakeCompliantFieldName(FieldRef.Name, FieldRef.Number);
+            if FieldNameList.Contains(CompliantFieldName) then
+                ADLSEUtil.LSCAddDuplicateSuffix(CompliantFieldName)
+            else
+                FieldNameList.Add(CompliantFieldName);
+
             Result.Add(
                 CreateAttributeJson(
-                    ADLSEUtil.GetDataLakeCompliantFieldName(FieldRef.Name, FieldRef.Number),
+                    CompliantFieldName,
                     DataFormat,
                     FieldRef.Name,
                     AppliedTraits,
@@ -155,8 +164,17 @@ codeunit 82566 "ADLSE CDM Util" // Refer Common Data Model https://docs.microsof
     end;
 
     procedure GetCompanyFieldName(): Text
+    var
+        ADLSESetup: Record "ADLSE Setup";
+        LSCCompanyFieldNameLbl: Label 'CompanyPrefix', Locked = true;
     begin
-        exit(CompanyFieldNameLbl);
+        ADLSESetup.GetSingleton();
+        case ADLSESetup."LSC Naming Convention" of
+            ADLSESetup."LSC Naming Convention"::Original:
+                exit(CompanyFieldNameLbl);
+            ADLSESetup."LSC Naming Convention"::LSCentral:
+                exit(LSCCompanyFieldNameLbl);
+        end;
     end;
 
     procedure GetCompanyFieldNameLength(): Integer

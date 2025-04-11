@@ -141,16 +141,42 @@ codeunit 82564 "ADLSE Util"
 
     procedure GetDataLakeCompliantTableName(TableID: Integer) TableName: Text
     var
+        ADLSESetup: Record "ADLSE Setup";
         OrigTableName: Text;
     begin
         OrigTableName := GetTableName(TableID);
-        TableName := GetDataLakeCompliantName(OrigTableName);
-        exit(StrSubstNo(ConcatNameIdTok, TableName, TableID));
+
+        ADLSESetup.Get();
+        case ADLSESetup."LSC Naming Convention" of
+            ADLSESetup."LSC Naming Convention"::Original:
+                begin
+                    TableName := GetDataLakeCompliantName(OrigTableName);
+                    exit(StrSubstNo(ConcatNameIdTok, TableName, TableID));
+                end;
+            ADLSESetup."LSC Naming Convention"::LSCentral:
+                begin
+                    TableName := LSCGetDataLakeCompliantName(ADLSESetup, OrigTableName);
+                    exit(TableName);
+                end;
+        end;
     end;
 
     procedure GetDataLakeCompliantFieldName(FieldName: Text; FieldID: Integer): Text
+    var
+        ADLSESetup: Record "ADLSE Setup";
+        LSCFieldName: Text;
     begin
-        exit(StrSubstNo(ConcatNameIdTok, GetDataLakeCompliantName(FieldName), FieldID));
+        ADLSESetup.Get();
+        case ADLSESetup."LSC Naming Convention" of
+            ADLSESetup."LSC Naming Convention"::Original:
+                exit(StrSubstNo(ConcatNameIdTok, GetDataLakeCompliantName(FieldName), FieldID));
+            ADLSESetup."LSC Naming Convention"::LSCentral:
+                begin
+                    LSCFieldName := LSCGetDataLakeCompliantName(ADLSESetup, FieldName);
+                    LSCCheckSpecialColumnNames(LSCFieldName);
+                    exit(LSCFieldName);
+                end;
+        end;
     end;
 
     procedure GetTableName(TableID: Integer) TableName: Text
@@ -179,6 +205,87 @@ codeunit 82564 "ADLSE Util"
                 ResultBuilder.Append(Letter);
         end;
         Result := ResultBuilder.ToText();
+    end;
+
+    procedure LSCGetDataLakeCompliantName(Setup: Record "ADLSE Setup"; Name: Text) Result: Text
+    var
+        ResultBuilder: TextBuilder;
+        Index: Integer;
+        Letter: Text;
+        Prefixes, Pre : Text;
+        SpaceTxt: Label ' ', Locked = true;
+        LowDashTxt: Label '_', Locked = true;
+    begin
+        for Index := 1 to StrLen(Name) do begin
+            Letter := CopyStr(Name, Index, 1);
+            //Keep all letters, but replace unknown one with low dash
+            if StrPos(AlphabetsLowerTxt, Letter) = 0 then
+                if StrPos(AlphabetsUpperTxt, Letter) = 0 then
+                    if StrPos(NumeralsTxt, Letter) = 0 then
+                        if StrPos(SpaceTxt, Letter) = 0 then
+                            if StrPos(Setup."LSC Special Char to be kept", Letter) = 0 then
+                                Letter := LowDashTxt;
+
+            ResultBuilder.Append(Letter);
+        end;
+        Result := ResultBuilder.ToText();
+
+        //Remove prefixes
+        Prefixes := Setup."LSC Prefix to be removed";
+        while (Prefixes <> '') do begin
+            Pre := LSCReturnNextPrefix(Prefixes);
+            if StrPos(Result, Pre) = 1 then
+                Result := DelStr(Result, 1, StrLen(Pre) + 1);
+        end;
+    end;
+
+    procedure LSCReturnNextPrefix(var PrefixStr: Text): Text
+    var
+        pre: text;
+        CommaPos: Integer;
+    begin
+        CommaPos := StrPos(PrefixStr, ',');
+        if CommaPos > 0 then begin
+            pre := CopyStr(PrefixStr, 1, CommaPos - 1);
+            PrefixStr := CopyStr(PrefixStr, CommaPos + 1);
+        end else begin
+            pre := PrefixStr;
+            PrefixStr := '';
+        end;
+
+        exit(pre);
+    end;
+
+    procedure LSCInitializeSetup(var Setup: Record "ADLSE Setup")
+    begin
+        Setup."LSC Naming Convention" := Setup."LSC Naming Convention"::LSCentral;
+        Setup."LSC Prefix to be removed" := 'LSCHT,LSC';
+        Setup."LSC Special Char to be kept" := '()-';
+    end;
+
+    procedure LSCCheckSpecialColumnNames(var ColumnName: Text)
+    var
+        CompanyBeforeTxt: Label '$Company', Locked = true;
+        CompanyAfterTxt: Label 'CompanyPrefix', Locked = true;
+        timestampBeforeTxt: Label 'timestamp', Locked = true;
+        timestampAfterTxt: Label 'bigint_timestamp', Locked = true;
+    begin
+        if ColumnName = CompanyBeforeTxt then begin
+            ColumnName := CompanyAfterTxt;
+            exit;
+        end;
+
+        if ColumnName = timestampBeforeTxt then begin
+            ColumnName := timestampAfterTxt;
+            exit;
+        end;
+    end;
+
+    procedure LSCAddDuplicateSuffix(var ColumnName: Text)
+    var
+        DuplicateSuffixTxt: Label '-duplicate-2', Locked = true;
+    begin
+        ColumnName := ColumnName + DuplicateSuffixTxt;
     end;
 
     procedure CheckFieldTypeForExport(Field: Record Field)
@@ -320,12 +427,19 @@ codeunit 82564 "ADLSE Util"
         FieldsAdded: Integer;
         FieldTextValue: Text;
         Payload: TextBuilder;
+        FieldNameList: List of [Text];
     begin
         FieldsAdded := 0;
         foreach FieldID in FieldIdList do begin
             FieldRef := RecordRef.Field(FieldID);
 
             FieldTextValue := GetDataLakeCompliantFieldName(FieldRef.Name, FieldRef.Number);
+
+            if FieldNameList.Contains(FieldTextValue) then
+                LSCAddDuplicateSuffix(FieldTextValue)
+            else
+                FieldNameList.Add(FieldTextValue);
+
             if FieldsAdded = 0 then
                 Payload.Append(FieldTextValue)
             else

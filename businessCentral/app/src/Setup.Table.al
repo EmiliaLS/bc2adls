@@ -214,6 +214,18 @@ table 82560 "ADLSE Setup"
             OptionCaption = 'Original,LSCentral';
             OptionMembers = Original,LSCentral;
         }
+        field(50001; "LSC Prefix to be removed"; Text[100])
+        {
+            Caption = 'LSC Prefixes to be removed';
+            ToolTip = 'Specifies which prefixes to be removed from table and field names.';
+            InitValue = 'LSCHT,LSC';
+        }
+        field(50002; "LSC Special Char to be kept"; Text[100])
+        {
+            Caption = 'LSC Special Chars to be kept';
+            ToolTip = 'Specifies which special characters to be kept from table and field names.';
+            InitValue = '()-';
+        }
 
     }
 
